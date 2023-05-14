@@ -2,46 +2,78 @@
 
 namespace App\Http\Requests;
 
+use App\Components\DataTransferObjects\DtoRule;
 use App\Components\DataTransferObjects\OfferDto;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Http\Request;
+use ReflectionClass;
+use ReflectionProperty;
 
 class OfferCreateFormRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     *
-     * @return bool
-     */
     public function authorize(): bool
     {
         return true;
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, mixed>
-     */
     public function rules(): array
     {
-        return [
-            'title' => ['required', 'string', 'max:255'],
-            'price' => ['required', 'integer', 'min:1000', 'max:999999999'],
-            'description' => ['nullable', 'string', 'max:4096'],
-            'isActive' => ['required', 'boolean'],
-            'publishAt' => ['required', 'date_format:Y-m-d H:i:s'],
-        ];
+        $rules = [];
+        $dto = new OfferDto('', 0, null, false, '');
+
+        // create instance to use annotations
+        $reflection = new ReflectionClass($dto);
+        foreach ($reflection->getProperties() as $property) {
+            $rules[$property->getName()] = $this->getRulesForProperty($property);
+        }
+        return $rules;
     }
 
-    public function toDto(
-        string $title,
-        int $price,
-        string $description,
-        bool $isActive,
-        string $publishAt,
-    ): OfferDto
+    private function getRulesForProperty(ReflectionProperty $property): array
     {
-       return new OfferDto($title, $price, $description, $isActive, $publishAt);
+        $rules = [];
+        $rules[] = $property->hasType() ? $property->getType()->getName() : 'string';
+        $rules[] = $this->getValidationRule('max', $property);
+        $rules[] = $this->getValidationRule('min', $property);
+        $rules[] = $this->getValidationRule('date_format', $property);
+        $rules[] = $property->getDocComment() ? 'required' : 'nullable';
+        return array_filter($rules);
+    }
+
+    private function getValidationRule($rule, $property): string
+    {
+        $dtoRule = $this->getDtoRule($property);
+        return $dtoRule && property_exists($dtoRule, $rule)
+            ? "{$rule}:{$dtoRule->{$rule}}"
+            : '';
+    }
+
+    private function getDtoRule($property): ?DtoRule
+    {
+        $docComment = $property->getDocComment();
+        if ($docComment) {
+            $matches = [];
+            preg_match('/@DtoRule\((.*?)\)/', $docComment, $matches);
+            if (!empty($matches)) {
+                $arguments = explode(',', $matches[1]);
+                $args = [];
+                foreach ($arguments as $argument) {
+                    [$name, $value] = array_map('trim', explode(':', $argument));
+                    $args[$name] = $value;
+                }
+                return new DtoRule(...array_values($args));
+            }
+        }
+        return null;
+    }
+
+    public function toDto(): OfferDto
+    {
+        return new OfferDto(
+            $this->input('title'),
+            $this->input('price'),
+            $this->input('description'),
+            $this->input('isActive'),
+            $this->input('publishAt')
+        );
     }
 }

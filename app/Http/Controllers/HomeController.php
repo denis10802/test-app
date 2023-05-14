@@ -20,12 +20,6 @@ class HomeController extends Controller
 
     public function create(OfferCreateFormRequest $formRequest): OfferDto
     {
-        return $formRequest->toDto(
-            $formRequest->post('title'),
-            $formRequest->post('price'),
-            $formRequest->post('description'),
-            $formRequest->post('isActive'),
-            $formRequest->post('publishAt'),
-        );
+        return $formRequest->toDto();
     }
 }
