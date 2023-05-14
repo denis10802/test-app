@@ -53,5 +53,4 @@ class OfferCreateFormRequest extends FormRequest
             $this->input('publishAt')
         );
     }
-
 }
