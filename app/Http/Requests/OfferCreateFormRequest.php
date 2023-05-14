@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Components\DataTransferObjects\DtoRule;
 use App\Components\DataTransferObjects\OfferDto;
 use Illuminate\Foundation\Http\FormRequest;
 use ReflectionClass;
@@ -10,60 +9,38 @@ use ReflectionProperty;
 
 class OfferCreateFormRequest extends FormRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     public function rules(): array
     {
         $rules = [];
-        $dto = new OfferDto('', 0, null, false, '');
+        $dto = new OfferDto('', 0, null, '', '');
 
-        // create instance to use annotations
         $reflection = new ReflectionClass($dto);
         foreach ($reflection->getProperties() as $property) {
             $rules[$property->getName()] = $this->getRulesForProperty($property);
         }
+
         return $rules;
     }
 
     private function getRulesForProperty(ReflectionProperty $property): array
     {
         $rules = [];
+        $rules[] = $property->getName() == 'description' ? 'nullable' : 'required';
         $rules[] = $property->hasType() ? $property->getType()->getName() : 'string';
-        $rules[] = $this->getValidationRule('max', $property);
-        $rules[] = $this->getValidationRule('min', $property);
-        $rules[] = $this->getValidationRule('date_format', $property);
-        $rules[] = $property->getDocComment() ? 'required' : 'nullable';
-        return array_filter($rules);
+        $rules[] = $this->getValidationRule($property);
+
+        return $rules;
     }
 
-    private function getValidationRule($rule, $property): string
+    private function getValidationRule(ReflectionProperty $property): string
     {
-        $dtoRule = $this->getDtoRule($property);
-        return $dtoRule && property_exists($dtoRule, $rule)
-            ? "{$rule}:{$dtoRule->{$rule}}"
-            : '';
-    }
-
-    private function getDtoRule($property): ?DtoRule
-    {
-        $docComment = $property->getDocComment();
-        if ($docComment) {
-            $matches = [];
-            preg_match('/@DtoRule\((.*?)\)/', $docComment, $matches);
-            if (!empty($matches)) {
-                $arguments = explode(',', $matches[1]);
-                $args = [];
-                foreach ($arguments as $argument) {
-                    [$name, $value] = array_map('trim', explode(':', $argument));
-                    $args[$name] = $value;
-                }
-                return new DtoRule(...array_values($args));
-            }
+        $strRule = '';
+        foreach ($property->getAttributes() as $attribute) {
+            $getStrFromArray = fn(string $k, int|string $v): string => "$k:$v";
+            $strRule = implode(',', array: array_map($getStrFromArray, array_keys($attribute->getArguments()), array_values($attribute->getArguments())));
         }
-        return null;
+
+        return $strRule;
     }
 
     public function toDto(): OfferDto
@@ -76,4 +53,5 @@ class OfferCreateFormRequest extends FormRequest
             $this->input('publishAt')
         );
     }
+
 }
