@@ -12,7 +12,7 @@ class OfferCreateFormRequest extends FormRequest
     public function rules(): array
     {
         $rules = [];
-        $dto = new OfferDto('', 0, null, '', '');
+        $dto = new OfferDto('', 0, null, false, '');
 
         $reflection = new ReflectionClass($dto);
         foreach ($reflection->getProperties() as $property) {
